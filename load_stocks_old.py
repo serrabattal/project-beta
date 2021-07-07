@@ -49,7 +49,7 @@ def getSampleValues_stocks():
     window_size = 5
     feature_column = 0
     target_column = 0
-    X, y = window_data(set_lags(), window_size, feature_column, target_column)
+    X, y = window_data(set_stocks(), window_size, feature_column, target_column)
     return X,y
 
 def getTestingData_stocks(percent_training=70/100):
