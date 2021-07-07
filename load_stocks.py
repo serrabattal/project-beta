@@ -19,9 +19,13 @@ def get_stocks_pct_change():
 def get_stocks_list():
     return stocks.index.tolist()
 
-def set_AAPL_lag():
+def set_lags():
     stocks_pct = get_stocks_pct_change()
-    stocks_pct['AAPL Lag'] = stocks_pct['AAPL'].shift()
+    for stocks in get_stocks_list():
+        stocks_pct[stocks+' Lag'] = stocks_pct[stocks].shift()
+        if (stocks!='AAPL'):
+            stocks_pct.drop(columns=stocks, inplace=True)
+
     stocks_pct = stocks_pct.dropna()
     return stocks_pct
 
@@ -45,7 +49,7 @@ def getSampleValues_stocks():
     window_size = 5
     feature_column = 0
     target_column = 0
-    X, y = window_data(set_stocks(), window_size, feature_column, target_column)
+    X, y = window_data(set_lags(), window_size, feature_column, target_column)
     return X,y
 
 def getTestingData_stocks(percent_training=70/100):
@@ -83,7 +87,7 @@ def set_LSTM_RNN_stocks_model():
     model = ml.Sequential()
 
     number_units = 5
-    dropout_fraction = 0.2
+#     dropout_fraction = 0.2
 
     # Layer 1
     model.add(ml.LSTM(
@@ -91,14 +95,15 @@ def set_LSTM_RNN_stocks_model():
         return_sequences=True,
         input_shape=(X_train.shape[1], 1))
     )
-    model.add(ml.Dropout(dropout_fraction))
-    # Layer 2
-    model.add(ml.LSTM(units=number_units, return_sequences=True))
-    model.add(ml.Dropout(dropout_fraction))
-    # Layer 3
-    model.add(ml.LSTM(units=number_units))
-    model.add(ml.Dropout(dropout_fraction))
+#     model.add(ml.Dropout(dropout_fraction))
+#     # Layer 2
+#     model.add(ml.LSTM(units=number_units, return_sequences=True))
+#     model.add(ml.Dropout(dropout_fraction))
+#     # Layer 3
+#     model.add(ml.LSTM(units=number_units))
+#     model.add(ml.Dropout(dropout_fraction))
     # Output layer
+    model.add(ml.Flatten())
     model.add(ml.Dense(1))
 
     print('step 1. compile the model')

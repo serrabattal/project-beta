@@ -19,4 +19,4 @@ from MCForecastTools import MCSimulation
 from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Flatten
