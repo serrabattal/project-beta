@@ -20,7 +20,7 @@ def get_stocks_list():
     return stocks.index.tolist()
 
 def set_lags():
-    stocks_pct = get_stocks_pct_change()
+    stocks_pct = set_stocks()
     for stocks in get_stocks_list():
         stocks_pct[stocks+' Lag'] = stocks_pct[stocks].shift()
         if (stocks!='AAPL'):
@@ -49,7 +49,7 @@ def getSampleValues_stocks():
     window_size = 5
     feature_column = 0
     target_column = 0
-    X, y = window_data(set_stocks(), window_size, feature_column, target_column)
+    X, y = window_data(set_lags(), window_size, feature_column, target_column)
     return X,y
 
 def getTestingData_stocks(percent_training=70/100):
@@ -107,6 +107,7 @@ def set_LSTM_RNN_stocks_model():
     model.add(ml.Dense(1))
 
     print('step 1. compile the model')
+#     model.compile(optimizer="adam", loss="mean_absolute_percentage_error"), X_train, X_test, y_train, y_test, scaler
     model.compile(optimizer="adam", loss="mean_squared_error"), X_train, X_test, y_train, y_test, scaler
 
     print('step 2. model summary')
