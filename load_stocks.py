@@ -1,7 +1,17 @@
 import mandatory_libraries as ml
 
 csv_path = ml.Path('Resources/Stocks - Sheet1.csv')
+apple_earning_path = ml.Path('Resources/apple_earning - Sheet1.csv')
+apple_launch_path = ml.Path('Resources/iphone_launch - Sheet1.csv')
+
 stocks = ml.pd.read_csv(csv_path, header=0, index_col=0).dropna(how='all', axis=1)
+apple_earning = ml.pd.read_csv(apple_earning_path, index_col=0)
+iphone_launch = ml.pd.read_csv(apple_launch_path, index_col=0)
+
+def set_apple_info():
+    apple_info = apple_earning.join(iphone_launch, how='outer')
+    apple_info.drop(['Quarter End','Estimated EPS','Actual EPS'], axis=1, inplace=True)
+    return apple_info
 
 def set_stocks():
     stocks_df = ml.pd.DataFrame()
@@ -13,21 +23,29 @@ def set_stocks():
 
 def get_stocks_pct_change():
     result = set_stocks().pct_change()
-    result.dropna(inplace= True)
+    result.dropna(inplace=True)
     return result
 
 def get_stocks_list():
     return stocks.index.tolist()
 
 def set_lags():
-    stocks_pct = set_stocks()
-    for stocks in get_stocks_list():
-        stocks_pct[stocks+' Lag'] = stocks_pct[stocks].shift()
-        if (stocks!='AAPL'):
-            stocks_pct.drop(columns=stocks, inplace=True)
+    stocks_df = set_stocks()
+    for stock in get_stocks_list():
+        stocks_df[stock+' Lag'] = stocks_df[stock].shift()
+        if (stock!='AAPL'):
+            stocks_df.drop(columns=stock, inplace=True)
 
-    stocks_pct = stocks_pct.dropna()
-    return stocks_pct
+    stocks_df.dropna(inplace=True)
+    return stocks_df
+
+def combine_lags_appleInfo():
+    combined_df = set_lags()
+    combined_df = combined_df.join(set_apple_info(), how='outer')
+    combined_df = combined_df[combined_df['AAPL'].notna()]
+    combined_df['iphone'].fillna(0, inplace=True)
+    combined_df['Result'].fillna(1, inplace=True)
+    return combined_df
 
 def window_data(df, window, feature_col_number, target_col_number):
     """
@@ -38,7 +56,7 @@ def window_data(df, window, feature_col_number, target_col_number):
     X = []
     y = []
     for i in range(len(df) - window):
-        features = df.iloc[i : (i + window), feature_col_number]
+        features = df.iloc[i: (i + window), feature_col_number]
         target = df.iloc[(i + window), target_col_number]
         X.append(features)
         y.append(target)
@@ -49,7 +67,7 @@ def getSampleValues_stocks():
     window_size = 5
     feature_column = 0
     target_column = 0
-    X, y = window_data(set_lags(), window_size, feature_column, target_column)
+    X, y = window_data(combine_lags_appleInfo(), window_size, feature_column, target_column)
     return X,y
 
 def getTestingData_stocks(percent_training=70/100):
@@ -87,7 +105,7 @@ def set_LSTM_RNN_stocks_model():
     model = ml.Sequential()
 
     number_units = 5
-#     dropout_fraction = 0.2
+    #     dropout_fraction = 0.2
 
     # Layer 1
     model.add(ml.LSTM(
@@ -95,26 +113,26 @@ def set_LSTM_RNN_stocks_model():
         return_sequences=True,
         input_shape=(X_train.shape[1], 1))
     )
-#     model.add(ml.Dropout(dropout_fraction))
-#     # Layer 2
-#     model.add(ml.LSTM(units=number_units, return_sequences=True))
-#     model.add(ml.Dropout(dropout_fraction))
-#     # Layer 3
-#     model.add(ml.LSTM(units=number_units))
-#     model.add(ml.Dropout(dropout_fraction))
+    #     model.add(ml.Dropout(dropout_fraction))
+    #     # Layer 2
+    #     model.add(ml.LSTM(units=number_units, return_sequences=True))
+    #     model.add(ml.Dropout(dropout_fraction))
+    #     # Layer 3
+    #     model.add(ml.LSTM(units=number_units))
+    #     model.add(ml.Dropout(dropout_fraction))
     # Output layer
     model.add(ml.Flatten())
     model.add(ml.Dense(1))
 
     print('step 1. compile the model')
-#     model.compile(optimizer="adam", loss="mean_absolute_percentage_error"), X_train, X_test, y_train, y_test, scaler
+    #     model.compile(optimizer="adam", loss="mean_absolute_percentage_error"), X_train, X_test, y_train, y_test, scaler
     model.compile(optimizer="adam", loss="mean_squared_error"), X_train, X_test, y_train, y_test, scaler
 
     print('step 2. model summary')
     model.summary()
 
     print('step 3. Train the model')
-    model.fit(X_train, y_train, epochs=10, shuffle=False, batch_size=1, verbose=1)
+    model.fit(X_train, y_train, epochs=35, shuffle=False, batch_size=1, verbose=1)
 
     print('step 4. Evaluate the model')
     model.evaluate(X_test, y_test)
