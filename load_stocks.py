@@ -35,7 +35,6 @@ def set_lags():
         stocks_df[stock+' Lag'] = stocks_df[stock].shift()
         if (stock!='AAPL'):
             stocks_df.drop(columns=stock, inplace=True)
-
     stocks_df.dropna(inplace=True)
     return stocks_df
 
@@ -152,3 +151,30 @@ def get_predictions_stocks():
     }, index=set_stocks().index[-len(real_prices):])
 
     return stocks_predict
+
+def plot_correlations():
+    correlation = (get_stocks_pct_change()).corr()
+    correlation
+    # Display de correlation matrix
+    ml.plt.rcParams['figure.figsize'] = (25.0, 10.0)
+    ml.plt.rcParams['font.family'] = "consolas"
+    ml.plt.rcParams.update({'font.size': 20})
+
+    return ml.sns.heatmap(correlation, annot=True, vmin=-1, vmax=1, annot_kws={'size': 25})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
