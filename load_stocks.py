@@ -1,6 +1,7 @@
 import mandatory_libraries as ml
+import hvplot.pandas
 
-csv_path = ml.Path('Resources/Stocks - Sheet1.csv')
+csv_path = ml.Path('Resources/2018_stocks_data.csv')
 apple_earning_path = ml.Path('Resources/apple_earning - Sheet1.csv')
 apple_launch_path = ml.Path('Resources/iphone_launch - Sheet1.csv')
 
@@ -8,18 +9,264 @@ stocks = ml.pd.read_csv(csv_path, header=0, index_col=0).dropna(how='all', axis=
 apple_earning = ml.pd.read_csv(apple_earning_path, index_col=0)
 iphone_launch = ml.pd.read_csv(apple_launch_path, index_col=0)
 
+def set_stocks():
+    return stocks
+
 def set_apple_info():
     apple_info = apple_earning.join(iphone_launch, how='outer')
     apple_info.drop(['Quarter End','Estimated EPS','Actual EPS'], axis=1, inplace=True)
     return apple_info
 
-def set_stocks():
-    stocks_df = ml.pd.DataFrame()
-    for i in stocks.index:
-        stocks_df[i] = ml.get_data(i)['close']
-    stocks_df.index = ml.pd.to_datetime(stocks_df.index)
-    stocks_df.dropna(inplace=True)
-    return stocks_df
+def get_appl_data(start_date = "2016-01-01"):
+    aapl_df = ml.yf.download("AAPL", start=start_date,progress=False)
+    aapl_df.reset_index(level=0, inplace=True)
+    return aapl_df
+
+def get_aapl_signals(short_window = 50, long_window = 100):
+    aapl_df = get_appl_data()
+    # Grab just the `date` and `close` from the dataset
+    signals_df = aapl_df.loc[:, ["Date", "Close"]].copy()
+    # Set the `date` column as the index
+    signals_df = signals_df.set_index("Date", drop=True)
+    # Generate the short and long moving averages (50 and 100 days, respectively)
+    signals_df["SMA50"] = signals_df["Close"].rolling(window=short_window).mean()
+    signals_df["SMA100"] = signals_df["Close"].rolling(window=long_window).mean()
+    signals_df["Signal"] = 0.0
+    signals_df = signals_df.dropna()
+    # Generate the trading signal 0 or 1,
+    # where 0 is when the SMA50 is under the SMA100, and
+    # where 1 is when the SMA50 is higher (or crosses over) the SMA100
+    signals_df["Signal"][short_window:] = ml.np.where(
+        signals_df["SMA50"][short_window:] > signals_df["SMA100"][short_window:], 1.0, 0.0
+    )
+
+    # Calculate the points in time at which a position should be taken, 1 or -1
+    signals_df["Entry/Exit"] = signals_df["Signal"].diff()
+    return signals_df
+
+def aapl_signals_plot():
+    signals_df = get_aapl_signals().copy()
+
+    # Visualize exit position relative to close price
+    exit = signals_df[signals_df['Entry/Exit'] == -1.0]['Close'].hvplot.scatter(
+        color='red',
+        marker='v',
+        size=200,
+        legend=False,
+        ylabel='Price in $',
+        width=1000,
+        height=400
+    )
+
+    # Visualize entry position relative to close price
+    entry = signals_df[signals_df['Entry/Exit'] == 1.0]['Close'].hvplot.scatter(
+        color='green',
+        marker='^',
+        size=200,
+        legend=False,
+        ylabel='Price in $',
+        width=1000,
+        height=400
+    )
+
+    # Visualize close price for the investment
+    security_close = signals_df[['Close']].hvplot(
+        line_color='lightgray',
+        ylabel='Price in $',
+        width=1000,
+        height=400
+    )
+
+    # Visualize moving averages
+    moving_avgs = signals_df[['SMA50', 'SMA100']].hvplot(
+        ylabel='Price in $',
+        width=1000,
+        height=400
+    )
+
+    # Overlay plots
+    entry_exit_plot = security_close * moving_avgs * entry * exit
+    return entry_exit_plot.opts(xaxis=None)
+
+def analyze_aapl_signals():
+    signals_df = get_aapl_signals().copy()
+    # Set initial capital
+    initial_capital = float(100000)
+
+    # Set the share size
+    share_size = 500
+
+    # Take a 500 share position where the dual moving average crossover is 1 (SMA50 is greater than SMA100)
+    signals_df['Position'] = share_size * signals_df['Signal']
+
+    # Find the points in time where a 500 share position is bought or sold
+    signals_df['Entry/Exit Position'] = signals_df['Position'].diff()
+
+    # Multiply share price by entry/exit positions and get the cumulatively sum
+    signals_df['Portfolio Holdings'] = signals_df['Close'] * signals_df['Entry/Exit Position'].cumsum()
+
+    # Subtract the initial capital by the portfolio holdings to get the amount of liquid cash in the portfolio
+    signals_df['Portfolio Cash'] = initial_capital - (signals_df['Close'] * signals_df['Entry/Exit Position']).cumsum()
+
+    # Get the total portfolio value by adding the cash amount by the portfolio holdings (or investments)
+    signals_df['Portfolio Total'] = signals_df['Portfolio Cash'] + signals_df['Portfolio Holdings']
+
+    # Calculate the portfolio daily returns
+    signals_df['Portfolio Daily Returns'] = signals_df['Portfolio Total'].pct_change()
+
+    # Calculate the cumulative returns
+    signals_df['Portfolio Cumulative Returns'] = (1 + signals_df['Portfolio Daily Returns']).cumprod() - 1
+    return signals_df
+
+def analyze_aapl_portfolio():
+    signals_df = analyze_aapl_signals()
+    # Visualize exit position relative to total portfolio value
+    exit = signals_df[signals_df['Entry/Exit'] == -1.0]['Portfolio Total'].hvplot.scatter(
+        color='red',
+        legend=False,
+        ylabel='Total Portfolio Value',
+        width=1000,
+        height=400
+    )
+
+    # Visualize entry position relative to total portfolio value
+    entry = signals_df[signals_df['Entry/Exit'] == 1.0]['Portfolio Total'].hvplot.scatter(
+        color='green',
+        legend=False,
+        ylabel='Total Portfolio Value',
+        width=1000,
+        height=400
+    )
+
+    # Visualize total portoflio value for the investment
+    total_portfolio_value = signals_df[['Portfolio Total']].hvplot(
+        line_color='lightgray',
+        ylabel='Total Portfolio Value',
+        width=1000,
+        height=400
+    )
+
+    # Overlay plots
+    portfolio_entry_exit_plot = total_portfolio_value * entry * exit
+    return portfolio_entry_exit_plot.opts(xaxis=None)
+
+def get_aapl_portfolio_evaluation():
+    signals_df = analyze_aapl_signals()
+    # Prepare DataFrame for metrics
+    metrics = [
+        'Annual Return',
+        'Cumulative Returns',
+        'Annual Volatility',
+        'Sharpe Ratio',
+        'Sortino Ratio']
+
+    columns = ['Backtest']
+
+    # Initialize the DataFrame with index set to evaluation metrics and column as `Backtest` (just like PyFolio)
+    portfolio_evaluation_df = ml.pd.DataFrame(index=metrics, columns=columns)
+    # Calculate cumulative return
+    portfolio_evaluation_df.loc['Cumulative Returns'] = signals_df['Portfolio Cumulative Returns'][-1]
+    # Calculate annualized return
+    portfolio_evaluation_df.loc['Annual Return'] = (
+            signals_df['Portfolio Daily Returns'].mean() * 252
+    )
+    # Calculate annual volatility
+    portfolio_evaluation_df.loc['Annual Volatility'] = (
+            signals_df['Portfolio Daily Returns'].std() * ml.np.sqrt(252)
+    )
+    # Calculate Sharpe Ratio
+    portfolio_evaluation_df.loc['Sharpe Ratio'] = (
+                                                          signals_df['Portfolio Daily Returns'].mean() * 252) / (
+                                                          signals_df['Portfolio Daily Returns'].std() * ml.np.sqrt(252)
+                                                  )
+    # Calculate Downside Return
+    sortino_ratio_df = signals_df[['Portfolio Daily Returns']].copy()
+    sortino_ratio_df.loc[:, 'Downside Returns'] = 0
+    # signal_df[signal_df['Close '] > 100]
+    target = 0
+    mask = sortino_ratio_df['Portfolio Daily Returns'] < target
+    sortino_ratio_df.loc[mask, 'Downside Returns'] = sortino_ratio_df['Portfolio Daily Returns'] ** 2
+
+    # Calculate Sortino Ratio
+    down_stdev = ml.np.sqrt(sortino_ratio_df['Downside Returns'].std()) * ml.np.sqrt(252)
+    expected_return = sortino_ratio_df['Portfolio Daily Returns'].mean() * 252
+    sortino_ratio = expected_return / down_stdev
+
+    portfolio_evaluation_df.loc['Sortino Ratio'] = sortino_ratio
+    return portfolio_evaluation_df
+
+def aapl_trade_evaluation():
+    signals_df = analyze_aapl_signals()
+    # Initialize trade evaluation DataFrame with columns
+    trade_evaluation_df = ml.pd.DataFrame(
+        columns=[
+            'Stock',
+            'Entry Date',
+            'Exit Date',
+            'Shares',
+            'Entry Share Price',
+            'Exit Share Price',
+            'Entry Portfolio Holding',
+            'Exit Portfolio Holding',
+            'Profit/Loss']
+    )
+    # Initialize iterative variables
+    entry_date = ''
+    exit_date = ''
+    entry_portfolio_holding = 0
+    exit_portfolio_holding = 0
+    share_size = 0
+    entry_share_price = 0
+    exit_share_price = 0
+
+    # Loop through signal DataFrame
+    # If `Entry/Exit` is 1, set entry trade metrics
+    # Else if `Entry/Exit` is -1, set exit trade metrics and calculate profit,
+    # Then append the record to the trade evaluation DataFrame
+    for index, row in signals_df.iterrows():
+        if row['Entry/Exit'] == 1:
+            entry_date = index
+            entry_portfolio_holding = row['Portfolio Holdings']
+            share_size = row['Entry/Exit Position']
+            entry_share_price = row['Close']
+
+        elif row['Entry/Exit'] == -1:
+            exit_date = index
+            exit_portfolio_holding = abs(row['Close'] * row['Entry/Exit Position'])
+            exit_share_price = row['Close']
+            profit_loss = exit_portfolio_holding - entry_portfolio_holding
+            trade_evaluation_df = trade_evaluation_df.append(
+                {
+                    'Stock': 'AAPL',
+                    'Entry Date': entry_date,
+                    'Exit Date': exit_date,
+                    'Shares': share_size,
+                    'Entry Share Price': entry_share_price,
+                    'Exit Share Price': exit_share_price,
+                    'Entry Portfolio Holding': entry_portfolio_holding,
+                    'Exit Portfolio Holding': exit_portfolio_holding,
+                    'Profit/Loss': profit_loss
+                },
+                ignore_index=True)
+    return trade_evaluation_df
+
+def plot_closing_prices():
+    signals_df = get_aapl_signals()
+    price_df = signals_df[['Close', 'SMA50', 'SMA100']]
+    price_chart = price_df.hvplot.line()
+    price_chart.opts(xaxis=None)
+    return price_chart
+
+def plot_portfolio_evaluation():
+    result = get_aapl_portfolio_evaluation()
+    result.reset_index(inplace=True)
+    result_set = result.hvplot.table()
+    return result_set
+
+def plot_trade_evaluation():
+    trade_evaluation_df = aapl_trade_evaluation()
+    trade_evaluation_table = trade_evaluation_df.hvplot.table()
+    return trade_evaluation_table
 
 def get_stocks_pct_change():
     result = set_stocks().pct_change()
@@ -27,10 +274,11 @@ def get_stocks_pct_change():
     return result
 
 def get_stocks_list():
-    return stocks.index.tolist()
+    return stocks.columns.tolist()
 
 def set_lags():
-    stocks_df = set_stocks()
+    stocks_df = set_stocks().copy()
+
     for stock in get_stocks_list():
         stocks_df[stock+' Lag'] = stocks_df[stock].shift()
         if (stock!='AAPL'):
@@ -161,20 +409,3 @@ def plot_correlations():
     ml.plt.rcParams.update({'font.size': 20})
 
     return ml.sns.heatmap(correlation, annot=True, vmin=-1, vmax=1, annot_kws={'size': 25})
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

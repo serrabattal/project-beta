@@ -1,11 +1,13 @@
 import pandas as pd
-from yahoo_fin.stock_info import get_data
 from datetime import date
 import numpy as np
 import seaborn as sns
 from datetime import date
 from datetime import timedelta
 import os
+import json
+import hvplot.pandas
+import yfinance as yf
 from io import BytesIO
 import requests
 from twilio.rest import Client
@@ -20,3 +22,4 @@ from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Flatten
+from IPython.display import Markdown
