@@ -13,6 +13,7 @@ import requests
 from twilio.rest import Client
 from dotenv import load_dotenv
 import panel as pn
+pn.extension('')
 import subprocess
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt

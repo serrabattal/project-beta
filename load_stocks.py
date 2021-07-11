@@ -253,7 +253,7 @@ def aapl_trade_evaluation():
 def plot_closing_prices():
     signals_df = get_aapl_signals()
     price_df = signals_df[['Close', 'SMA50', 'SMA100']]
-    price_chart = price_df.hvplot.line()
+    price_chart = price_df.hvplot.line(width=1000, height=500)
     price_chart.opts(xaxis=None)
     return price_chart
 
@@ -400,12 +400,21 @@ def get_predictions_stocks():
 
     return stocks_predict
 
-def plot_correlations():
+def plot_predictions_stocks():
+    return get_predictions_stocks().hvplot(width=1000, height=500)
+
+def plot_correlations(param_ax=None):
     correlation = (get_stocks_pct_change()).corr()
-    correlation
     # Display de correlation matrix
     ml.plt.rcParams['figure.figsize'] = (25.0, 10.0)
     ml.plt.rcParams['font.family'] = "consolas"
     ml.plt.rcParams.update({'font.size': 20})
 
-    return ml.sns.heatmap(correlation, annot=True, vmin=-1, vmax=1, annot_kws={'size': 25})
+    return ml.sns.heatmap(correlation, annot=True, vmin=-1, vmax=1, annot_kws={'size': 25}, ax=param_ax)
+
+
+def listOfStocks_ToString(s=get_stocks_list()):
+    # initialize an empty string
+    str1 = " "
+    # return string
+    return (str1.join(s))
