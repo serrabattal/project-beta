@@ -430,3 +430,9 @@ def make_interpretations():
             aapl_pct_change.at[index,'Positive']=0
 
     return aapl_pct_change
+
+def make_model_interpretations(predictions):
+    predictions_pct_change=predictions.pct_change()
+    predictions_pct_change.dropna(inplace=True)
+
+    return predictions_pct_change
