@@ -412,9 +412,21 @@ def plot_correlations(param_ax=None):
 
     return ml.sns.heatmap(correlation, annot=True, vmin=-1, vmax=1, annot_kws={'size': 25}, ax=param_ax)
 
-
 def listOfStocks_ToString(s=get_stocks_list()):
     # initialize an empty string
     str1 = " "
     # return string
     return (str1.join(s))
+
+def make_interpretations():
+    aapl_pct_change = ml.pd.DataFrame()
+    aapl_pct_change['AAPL'] = (get_stocks_pct_change())['AAPL']
+    for index, row in aapl_pct_change.iterrows():
+        if(row['AAPL']>=0):
+            aapl_pct_change.at[index,'Positive']=1
+            aapl_pct_change.at[index,'Negative']=0
+        else:
+            aapl_pct_change.at[index,'Negative']=1
+            aapl_pct_change.at[index,'Positive']=0
+
+    return aapl_pct_change
